@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { Recipe } from "@/lib/mock-data";
 import { TasteProfileView } from "./TasteProfile";
 import { GearChips } from "./GearChips";
@@ -41,7 +42,11 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
       </div>
 
       {/* Image */}
-      <div className="px-4 pt-3">
+      <Link
+        to="/recipe/$id"
+        params={{ id: recipe.id }}
+        className="block px-4 pt-3"
+      >
         <img
           src={recipe.image}
           alt={recipe.title}
@@ -50,10 +55,10 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
           height={800}
           className="aspect-square w-full rounded-2xl object-cover"
         />
-      </div>
+      </Link>
 
       {/* Title + bean */}
-      <div className="px-4 pt-4">
+      <Link to="/recipe/$id" params={{ id: recipe.id }} className="block px-4 pt-4">
         <h2 className="text-lg font-bold leading-snug text-foreground">{recipe.title}</h2>
         <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Coffee className="h-3.5 w-3.5" />
@@ -61,7 +66,9 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
             {recipe.beanName} · <span className="text-foreground/70">{recipe.roastery}</span>
           </span>
         </div>
-      </div>
+      </Link>
+
+
 
       {/* Spec strip — the reproducible recipe at a glance */}
       <div className="mx-4 mt-4 grid grid-cols-5 rounded-2xl bg-[var(--cream)]/60">
