@@ -69,7 +69,7 @@ function Stat({
 }
 
 function RecipeDetail() {
-  const { recipe } = Route.useLoaderData();
+  const { recipe } = Route.useLoaderData() as { recipe: (typeof mockRecipes)[number] };
   const [saved, setSaved] = useState(!!recipe.saved);
   const [liked, setLiked] = useState(false);
 
