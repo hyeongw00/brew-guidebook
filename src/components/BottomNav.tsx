@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { Home, Search, PlusSquare, Bookmark, User } from "lucide-react";
 
-const items = [
+const items: { to: "/" | "/search" | "/create" | "/saved" | "/profile"; label: string; icon: typeof Home; primary?: boolean }[] = [
   { to: "/", label: "홈", icon: Home },
   { to: "/search", label: "검색", icon: Search },
   { to: "/create", label: "작성", icon: PlusSquare, primary: true },
   { to: "/saved", label: "저장", icon: Bookmark },
   { to: "/profile", label: "프로필", icon: User },
-] as const;
+];
 
 export function BottomNav() {
   return (
