@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { Recipe } from "@/lib/mock-data";
 import { TasteProfileView } from "./TasteProfile";
 import { GearChips } from "./GearChips";
