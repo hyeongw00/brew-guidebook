@@ -3,6 +3,8 @@ import { useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { TasteProfileView } from "@/components/TasteProfile";
 import type { TasteProfile } from "@/lib/mock-data";
+import { addRecipe, addBean, useProfile } from "@/lib/store";
+import coffeePlaceholder from "@/assets/coffee-4.jpg";
 import { ArrowLeft, Camera, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,6 +63,7 @@ function TasteSlider({
 
 function CreatePage() {
   const navigate = useNavigate();
+  const profile = useProfile();
   const [photo, setPhoto] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [bean, setBean] = useState("");
@@ -70,7 +73,7 @@ function CreatePage() {
   const [dose, setDose] = useState("15");
   const [water, setWater] = useState("240");
   const [waterTemp, setWaterTemp] = useState("92");
-  const [grinder, setGrinder] = useState("");
+  const [grinder, setGrinder] = useState(profile.mainGrinder);
   const [grindSize, setGrindSize] = useState("");
   const [brewTime, setBrewTime] = useState("2:45");
   const [steps, setSteps] = useState("");
@@ -92,7 +95,6 @@ function CreatePage() {
       toast.error("원두 이름을 먼저 입력해주세요");
       return;
     }
-    // Mock AI: vary slightly by bean name length
     const seed = bean.length;
     setTaste({
       acidity: ((seed * 3) % 5) + 1,
@@ -106,8 +108,64 @@ function CreatePage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim() || !bean.trim()) {
+      toast.error("제목과 원두 이름은 필수에요");
+      return;
+    }
+
+    let beanId: string | undefined;
+    if (shareBean) {
+      const created = addBean({
+        name: bean,
+        roastery: roastery || "—",
+        image: photo ?? coffeePlaceholder,
+        origin: "—",
+        process: "—",
+        roastLevel: "미디엄",
+        tastingNotes: notes
+          .split(",")
+          .map((n) => n.trim())
+          .filter(Boolean),
+        description: review || "사용자가 등록한 원두입니다.",
+      });
+      beanId = created.id;
+    }
+
+    const category =
+      /espresso|에스프레소/i.test(method) ? "espresso"
+      : /cold|콜드/i.test(method) ? "coldbrew"
+      : /라떼|latte/i.test(method) ? "latte"
+      : /v60|kalita|푸어|chemex|pourover/i.test(method) ? "pourover"
+      : "other";
+
+    const created = addRecipe({
+      image: photo ?? coffeePlaceholder,
+      title: title.trim(),
+      author: profile.username,
+      beanId,
+      beanName: bean.trim(),
+      roastery: roastery.trim() || "—",
+      method,
+      category,
+      temperature: temp,
+      dose: Number(dose) || 0,
+      water: Number(water) || 0,
+      waterTemp: Number(waterTemp) || 0,
+      grinder: grinder.trim() || "—",
+      grindSize: grindSize.trim() || "—",
+      brewTime: brewTime.trim() || "—",
+      taste,
+      gear: [
+        { type: "dripper", name: method },
+        ...(grinder ? [{ type: "grinder" as const, name: grinder }] : []),
+      ],
+      tastingNotes: notes.split(",").map((n) => n.trim()).filter(Boolean),
+      review: review.trim() || "—",
+      steps: steps.split("\n").map((s) => s.trim()).filter(Boolean),
+    });
+
     toast.success("레시피가 저장되었습니다 ☕");
-    setTimeout(() => navigate({ to: "/" }), 600);
+    setTimeout(() => navigate({ to: "/recipe/$id", params: { id: created.id } }), 400);
   };
 
   return (

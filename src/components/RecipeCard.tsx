@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Recipe } from "@/lib/mock-data";
+import { useIsSaved, toggleSave } from "@/lib/store";
 import { TasteProfileView } from "./TasteProfile";
 import { GearChips } from "./GearChips";
 import { Bookmark, Thermometer, Droplets, Scale as ScaleIcon, Timer, Coffee } from "lucide-react";
@@ -16,19 +16,10 @@ function Spec({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
 }
 
 export function RecipeCard({ recipe }: { recipe: Recipe }) {
-  const [saved, setSaved] = useState(!!recipe.saved);
-  const [saveCount, setSaveCount] = useState(recipe.saves);
-
-  const toggle = () => {
-    setSaved((s) => {
-      setSaveCount((c) => c + (s ? -1 : 1));
-      return !s;
-    });
-  };
+  const saved = useIsSaved(recipe.id);
 
   return (
     <article className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2 min-w-0">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--cream)] text-xs font-bold text-[var(--bean)]">
@@ -41,12 +32,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         </span>
       </div>
 
-      {/* Image */}
-      <Link
-        to="/recipe/$id"
-        params={{ id: recipe.id }}
-        className="block px-4 pt-3"
-      >
+      <Link to="/recipe/$id" params={{ id: recipe.id }} className="block px-4 pt-3">
         <img
           src={recipe.image}
           alt={recipe.title}
@@ -57,7 +43,6 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         />
       </Link>
 
-      {/* Title + bean */}
       <Link to="/recipe/$id" params={{ id: recipe.id }} className="block px-4 pt-4">
         <h2 className="text-lg font-bold leading-snug text-foreground">{recipe.title}</h2>
         <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -68,9 +53,6 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         </div>
       </Link>
 
-
-
-      {/* Spec strip — the reproducible recipe at a glance */}
       <div className="mx-4 mt-4 grid grid-cols-5 rounded-2xl bg-[var(--cream)]/60">
         <Spec icon={Coffee} label="원두" value={`${recipe.dose}g`} />
         <Spec icon={Droplets} label="물" value={`${recipe.water}g`} />
@@ -79,17 +61,14 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         <Spec icon={ScaleIcon} label="분쇄도" value={recipe.grindSize} />
       </div>
 
-      {/* Grinder line */}
       <div className="px-4 pt-3 text-xs text-muted-foreground">
         그라인더 · <span className="text-foreground font-medium">{recipe.grinder}</span>
       </div>
 
-      {/* Gear */}
       <div className="px-4 pt-3">
         <GearChips gear={recipe.gear} />
       </div>
 
-      {/* Taste profile */}
       <div className="mx-4 mt-4 rounded-2xl border border-border/60 p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold text-foreground">맛 프로파일</span>
@@ -100,16 +79,15 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         <TasteProfileView taste={recipe.taste} compact />
       </div>
 
-      {/* Footer actions */}
       <div className="flex items-center justify-between px-4 py-4">
         <p className="line-clamp-1 pr-3 text-xs text-muted-foreground">{recipe.review}</p>
         <button
-          onClick={toggle}
+          onClick={() => toggleSave(recipe.id)}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-primary-foreground transition-colors active:bg-[var(--bean)]"
           aria-label="저장"
         >
           <Bookmark className="h-4 w-4" fill={saved ? "currentColor" : "none"} />
-          <span className="text-xs font-semibold">{saveCount}</span>
+          <span className="text-xs font-semibold">{recipe.saves}</span>
         </button>
       </div>
     </article>
