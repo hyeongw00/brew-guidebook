@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { RecipeCard } from "@/components/RecipeCard";
-import { useRecipes, useBeans } from "@/lib/store";
+import { useRecipes, useBeans, useUsers } from "@/lib/store";
 import { Search as SearchIcon, X, Coffee } from "lucide-react";
 
 export const Route = createFileRoute("/search")({
@@ -17,6 +17,7 @@ const trending = ["예가체프", "V60", "콜드브루", "게이샤", "에스프
 function SearchPage() {
   const recipes = useRecipes();
   const beans = useBeans();
+  const users = useUsers();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("recipes");
 
@@ -24,13 +25,25 @@ function SearchPage() {
 
   const recipeResults = useMemo(() => {
     if (!ql) return recipes;
-    return recipes.filter((r) =>
-      [r.title, r.beanName, r.roastery, r.method, r.grinder, r.author, ...r.tastingNotes]
+    return recipes.filter((r) => {
+      const author = users[r.authorId];
+      return [
+        r.title,
+        r.beanName,
+        r.roastery,
+        r.method,
+        r.grinder,
+        r.grindSize,
+        author?.username ?? r.author ?? "",
+        author?.displayName ?? "",
+        ...r.gear.flatMap((g) => [g.type, g.name]),
+        ...r.tastingNotes,
+      ]
         .join(" ")
         .toLowerCase()
-        .includes(ql),
-    );
-  }, [recipes, ql]);
+        .includes(ql);
+    });
+  }, [recipes, ql, users]);
 
   const beanResults = useMemo(() => {
     if (!ql) return beans;

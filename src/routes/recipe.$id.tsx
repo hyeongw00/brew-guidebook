@@ -1,12 +1,16 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { TasteProfileView } from "@/components/TasteProfile";
 import { GearChips } from "@/components/GearChips";
 import {
   useRecipe,
+  useProfile,
   useIsSaved,
   useIsLiked,
   useIsFollowing,
+  useHasHydratedPersistedState,
+  useRecipeAuthor,
   toggleSave,
   toggleLike,
   toggleFollow,
@@ -24,7 +28,8 @@ import {
   Scale as ScaleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { mockRecipes } from "@/lib/mock-data";
+import { mockRecipes, type Recipe } from "@/lib/mock-data";
+import { getRecipeById } from "@/lib/recipes-api";
 
 export const Route = createFileRoute("/recipe/$id")({
   head: ({ params }) => {
@@ -74,13 +79,45 @@ function Stat({
 }
 
 function RecipeDetail() {
-  const { id } = Route.useLoaderData();
-  const recipe = useRecipe(id);
+  const { id } = Route.useParams();
+  const localRecipe = useRecipe(id);
+  const [dbRecipe, setDbRecipe] = useState<Recipe | null>(null);
+  const [dbLoaded, setDbLoaded] = useState(false);
+  const recipe = dbRecipe ?? localRecipe;
+  const profile = useProfile();
   const saved = useIsSaved(id);
   const liked = useIsLiked(id);
-  const following = useIsFollowing(recipe?.author ?? "");
+  const hasHydrated = useHasHydratedPersistedState();
+  const author = useRecipeAuthor(recipe);
+  const authorId = recipe?.authorId ?? "";
+  const following = useIsFollowing(authorId);
 
-  if (!recipe) throw notFound();
+  useEffect(() => {
+    let active = true;
+    setDbLoaded(false);
+    getRecipeById(id)
+      .then((nextRecipe) => {
+        if (!active) return;
+        setDbRecipe(nextRecipe);
+        setDbLoaded(true);
+      })
+      .catch((error) => {
+        console.error("[Supabase recipes] Falling back to local recipe", error);
+        if (active) setDbLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (!recipe) {
+    if (!hasHydrated || !dbLoaded) return null;
+    throw notFound();
+  }
+
+  const authorName = author?.displayName || author?.username || recipe.author || "unknown";
+  const authorInitial = authorName.trim().charAt(0).toUpperCase() || "?";
 
   const onShare = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
@@ -124,16 +161,16 @@ function RecipeDetail() {
       <div className="px-5 pt-5">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-full bg-[var(--cream)] text-xs font-bold text-[var(--bean)]">
-            {recipe.author[0].toUpperCase()}
+            {authorInitial}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{recipe.author}</p>
+            <p className="truncate text-sm font-medium">{authorName}</p>
             <p className="text-[11px] text-muted-foreground">{recipe.saves} saves</p>
           </div>
-          {!recipe.isMine && (
+          {authorId !== profile.id && (
             <button
               onClick={() => {
-                toggleFollow(recipe.author);
+                toggleFollow(authorId);
                 toast.success(following ? "팔로우 취소" : "팔로우 했어요");
               }}
               className={
@@ -241,6 +278,7 @@ function RecipeDetail() {
             <MessageCircle className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => {
               toggleSave(id);
               toast.success(saved ? "저장 해제" : "내 레시피에 저장했어요");

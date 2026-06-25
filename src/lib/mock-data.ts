@@ -25,7 +25,8 @@ export type Recipe = {
   id: string;
   image: string;
   title: string;
-  author: string;
+  authorId: string;
+  author?: string;
   beanId?: string;
   beanName: string;
   roastery: string;
@@ -163,7 +164,7 @@ export const mockRecipes: Recipe[] = [
     id: "1",
     image: coffee1,
     title: "에티오피아 예가체프 라이트 V60",
-    author: "barista_jun",
+    authorId: "barista_jun",
     beanId: "b1",
     beanName: "Ethiopia Yirgacheffe Konga",
     roastery: "프릳츠 커피",
@@ -198,7 +199,7 @@ export const mockRecipes: Recipe[] = [
     id: "2",
     image: coffee2,
     title: "콜드브루 라떼 데일리 레시피",
-    author: "morning_cup",
+    authorId: "morning_cup",
     beanId: "b2",
     beanName: "Colombia Geisha Natural",
     roastery: "센터커피",
@@ -232,7 +233,7 @@ export const mockRecipes: Recipe[] = [
     id: "3",
     image: coffee3,
     title: "케냐 AA 에스프레소 진한 한 잔",
-    author: "espresso_lab",
+    authorId: "espresso_lab",
     beanId: "b3",
     beanName: "Kenya AA Nyeri",
     roastery: "테라로사",
@@ -266,7 +267,7 @@ export const mockRecipes: Recipe[] = [
     id: "4",
     image: coffee5,
     title: "칼리타 웨이브 게이샤 하리하리",
-    author: "wave_pour",
+    authorId: "wave_pour",
     beanId: "b4",
     beanName: "Panama Esmeralda Geisha",
     roastery: "모모스 커피",
@@ -300,7 +301,7 @@ export const mockRecipes: Recipe[] = [
     id: "5",
     image: coffee6,
     title: "아이스 아메리카노 황금비율",
-    author: "ice_americano",
+    authorId: "ice_americano",
     beanId: "b5",
     beanName: "Brazil Cerrado Pulped Natural",
     roastery: "커피 리브레",
@@ -334,7 +335,7 @@ export const mockRecipes: Recipe[] = [
     id: "6",
     image: coffee4,
     title: "프렌치프레스 안티구아 4분",
-    author: "press_master",
+    authorId: "press_master",
     beanId: "b6",
     beanName: "Guatemala Antigua La Bolsa",
     roastery: "안트러사이트",

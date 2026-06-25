@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { RecipeCard } from "@/components/RecipeCard";
 import { useRecipes } from "@/lib/store";
+import { getRecipes } from "@/lib/recipes-api";
+import type { Recipe } from "@/lib/mock-data";
 import { Link } from "@tanstack/react-router";
 import { Bell } from "lucide-react";
 
@@ -49,9 +51,26 @@ function Header() {
 
 function Index() {
   const recipes = useRecipes();
+  const [dbRecipes, setDbRecipes] = useState<Recipe[]>([]);
   const [cat, setCat] = useState<CatKey>("all");
+  const feedRecipes = dbRecipes.length > 0 ? dbRecipes : recipes;
 
-  const filtered = recipes.filter((r) => {
+  useEffect(() => {
+    let active = true;
+    getRecipes()
+      .then((nextRecipes) => {
+        if (active) setDbRecipes(nextRecipes);
+      })
+      .catch((error) => {
+        console.error("[Supabase recipes] Falling back to local recipes", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = feedRecipes.filter((r) => {
     if (cat === "all") return true;
     if (cat === "hot") return r.temperature === "hot";
     if (cat === "iced") return r.temperature === "iced";

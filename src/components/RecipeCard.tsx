@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { Recipe } from "@/lib/mock-data";
-import { useIsSaved, toggleSave } from "@/lib/store";
+import { useIsSaved, toggleSave, useRecipeAuthor } from "@/lib/store";
 import { TasteProfileView } from "./TasteProfile";
 import { GearChips } from "./GearChips";
 import { Bookmark, Thermometer, Droplets, Scale as ScaleIcon, Timer, Coffee } from "lucide-react";
@@ -17,15 +17,18 @@ function Spec({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
 
 export function RecipeCard({ recipe }: { recipe: Recipe }) {
   const saved = useIsSaved(recipe.id);
+  const author = useRecipeAuthor(recipe);
+  const authorName = author?.displayName || author?.username || recipe.author || "unknown";
+  const authorInitial = authorName.trim().charAt(0).toUpperCase() || "?";
 
   return (
     <article className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2 min-w-0">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--cream)] text-xs font-bold text-[var(--bean)]">
-            {recipe.author[0].toUpperCase()}
+            {authorInitial}
           </div>
-          <span className="truncate text-sm font-medium">{recipe.author}</span>
+          <span className="truncate text-sm font-medium">{authorName}</span>
         </div>
         <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground">
           {recipe.temperature === "hot" ? "HOT" : "ICED"} · {recipe.method}
@@ -82,6 +85,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
       <div className="flex items-center justify-between px-4 py-4">
         <p className="line-clamp-1 pr-3 text-xs text-muted-foreground">{recipe.review}</p>
         <button
+          type="button"
           onClick={() => toggleSave(recipe.id)}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-primary-foreground transition-colors active:bg-[var(--bean)]"
           aria-label="저장"

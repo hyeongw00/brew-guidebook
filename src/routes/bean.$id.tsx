@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { RecipeCard } from "@/components/RecipeCard";
-import { useBean, useRecipesByBean } from "@/lib/store";
+import { useBean, useHasHydratedPersistedState, useRecipesByBean } from "@/lib/store";
 import { mockBeans } from "@/lib/mock-data";
 import { ArrowLeft, MapPin, Sprout, Flame, Mountain } from "lucide-react";
 
@@ -45,10 +45,14 @@ function Row({ icon: Icon, k, v }: { icon: React.ComponentType<{ className?: str
 }
 
 function BeanDetail() {
-  const { id } = Route.useLoaderData();
+  const { id } = Route.useParams();
   const bean = useBean(id);
   const recipes = useRecipesByBean(id);
-  if (!bean) throw notFound();
+  const hasHydrated = useHasHydratedPersistedState();
+  if (!bean) {
+    if (!hasHydrated) return null;
+    throw notFound();
+  }
 
   return (
     <MobileShell>

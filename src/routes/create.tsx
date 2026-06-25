@@ -2,8 +2,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { TasteProfileView } from "@/components/TasteProfile";
-import type { TasteProfile } from "@/lib/mock-data";
+import type { Gear, Recipe, TasteProfile } from "@/lib/mock-data";
 import { addRecipe, addBean, useProfile } from "@/lib/store";
+import { createRecipe } from "@/lib/recipes-api";
+import { useSupabaseAuth } from "@/lib/supabase";
 import coffeePlaceholder from "@/assets/coffee-4.jpg";
 import { ArrowLeft, Camera, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +34,15 @@ function Field({ label, children, hint }: { label: string; children: React.React
 
 const inputCls =
   "w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[var(--bean)] focus:outline-none";
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 function TasteSlider({
   label,
@@ -64,6 +75,7 @@ function TasteSlider({
 function CreatePage() {
   const navigate = useNavigate();
   const profile = useProfile();
+  const auth = useSupabaseAuth();
   const [photo, setPhoto] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [bean, setBean] = useState("");
@@ -85,9 +97,15 @@ function CreatePage() {
     acidity: 3, sweetness: 3, body: 3, bitterness: 2, cleanliness: 3,
   });
 
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setPhoto(URL.createObjectURL(f));
+    if (!f) return;
+
+    try {
+      setPhoto(await readFileAsDataUrl(f));
+    } catch {
+      toast.error("사진을 불러오지 못했어요");
+    }
   };
 
   const aiSuggest = () => {
@@ -106,7 +124,7 @@ function CreatePage() {
     toast.success("AI가 맛 프로파일을 제안했어요. 자유롭게 수정해보세요.");
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !bean.trim()) {
       toast.error("제목과 원두 이름은 필수에요");
@@ -131,17 +149,21 @@ function CreatePage() {
       beanId = created.id;
     }
 
-    const category =
+    const category: Recipe["category"] =
       /espresso|에스프레소/i.test(method) ? "espresso"
       : /cold|콜드/i.test(method) ? "coldbrew"
       : /라떼|latte/i.test(method) ? "latte"
       : /v60|kalita|푸어|chemex|pourover/i.test(method) ? "pourover"
       : "other";
 
-    const created = addRecipe({
+    const recipeGear: Gear[] = [
+      { type: "dripper", name: method },
+      ...(grinder ? [{ type: "grinder" as const, name: grinder }] : []),
+    ];
+
+    const recipeInput: Omit<Recipe, "id" | "createdAt" | "saves" | "isMine" | "authorId" | "author"> = {
       image: photo ?? coffeePlaceholder,
       title: title.trim(),
-      author: profile.username,
       beanId,
       beanName: bean.trim(),
       roastery: roastery.trim() || "—",
@@ -155,17 +177,49 @@ function CreatePage() {
       grindSize: grindSize.trim() || "—",
       brewTime: brewTime.trim() || "—",
       taste,
-      gear: [
-        { type: "dripper", name: method },
-        ...(grinder ? [{ type: "grinder" as const, name: grinder }] : []),
-      ],
+      gear: recipeGear,
       tastingNotes: notes.split(",").map((n) => n.trim()).filter(Boolean),
       review: review.trim() || "—",
       steps: steps.split("\n").map((s) => s.trim()).filter(Boolean),
-    });
+    };
 
-    toast.success("레시피가 저장되었습니다 ☕");
-    setTimeout(() => navigate({ to: "/recipe/$id", params: { id: created.id } }), 400);
+    try {
+      const created = auth.user
+        ? await createRecipe(
+            {
+              title: recipeInput.title,
+              description: recipeInput.review,
+              imageUrl: recipeInput.image,
+              method: recipeInput.method,
+              category: recipeInput.category,
+              temperature: recipeInput.temperature,
+              coffeeAmount: recipeInput.dose,
+              waterAmount: recipeInput.water,
+              waterTemp: recipeInput.waterTemp,
+              brewTime: recipeInput.brewTime,
+              grindSize: recipeInput.grindSize,
+              beanId: recipeInput.beanId,
+              beanName: recipeInput.beanName,
+              roastery: recipeInput.roastery,
+              grinder: recipeInput.grinder,
+              gear: recipeInput.gear,
+              steps: recipeInput.steps,
+              tastingNotes: recipeInput.tastingNotes,
+              taste: recipeInput.taste,
+              isPublic: true,
+            },
+            auth.user.id,
+          )
+        : addRecipe(recipeInput);
+
+      toast.success("레시피가 저장되었습니다 ☕");
+      setTimeout(() => navigate({ to: "/recipe/$id", params: { id: created.id } }), 400);
+    } catch (error) {
+      console.error("[Supabase recipes] Falling back to local create", error);
+      const created = addRecipe(recipeInput);
+      toast.success("레시피가 저장되었습니다 ☕");
+      setTimeout(() => navigate({ to: "/recipe/$id", params: { id: created.id } }), 400);
+    }
   };
 
   return (
