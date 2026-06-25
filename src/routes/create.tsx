@@ -3,6 +3,8 @@ import { useState } from "react";
 import { MobileShell } from "@/components/MobileShell";
 import { TasteProfileView } from "@/components/TasteProfile";
 import type { TasteProfile } from "@/lib/mock-data";
+import { addRecipe, addBean, useProfile } from "@/lib/store";
+import coffeePlaceholder from "@/assets/coffee-4.jpg";
 import { ArrowLeft, Camera, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 

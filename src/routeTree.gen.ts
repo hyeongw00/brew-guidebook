@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RecipeIdRouteImport } from './routes/recipe.$id'
+import { Route as BeanIdRouteImport } from './routes/bean.$id'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -29,6 +31,11 @@ const SavedRoute = SavedRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateRoute = CreateRouteImport.update({
@@ -46,53 +53,84 @@ const RecipeIdRoute = RecipeIdRouteImport.update({
   path: '/recipe/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BeanIdRoute = BeanIdRouteImport.update({
+  id: '/bean/$id',
+  path: '/bean/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/saved': typeof SavedRoute
   '/search': typeof SearchRoute
+  '/bean/$id': typeof BeanIdRoute
   '/recipe/$id': typeof RecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/saved': typeof SavedRoute
   '/search': typeof SearchRoute
+  '/bean/$id': typeof BeanIdRoute
   '/recipe/$id': typeof RecipeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/saved': typeof SavedRoute
   '/search': typeof SearchRoute
+  '/bean/$id': typeof BeanIdRoute
   '/recipe/$id': typeof RecipeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/profile' | '/saved' | '/search' | '/recipe/$id'
+  fullPaths:
+    | '/'
+    | '/create'
+    | '/notifications'
+    | '/profile'
+    | '/saved'
+    | '/search'
+    | '/bean/$id'
+    | '/recipe/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/profile' | '/saved' | '/search' | '/recipe/$id'
+  to:
+    | '/'
+    | '/create'
+    | '/notifications'
+    | '/profile'
+    | '/saved'
+    | '/search'
+    | '/bean/$id'
+    | '/recipe/$id'
   id:
     | '__root__'
     | '/'
     | '/create'
+    | '/notifications'
     | '/profile'
     | '/saved'
     | '/search'
+    | '/bean/$id'
     | '/recipe/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateRoute: typeof CreateRoute
+  NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRoute
   SavedRoute: typeof SavedRoute
   SearchRoute: typeof SearchRoute
+  BeanIdRoute: typeof BeanIdRoute
   RecipeIdRoute: typeof RecipeIdRoute
 }
 
@@ -119,6 +157,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/create': {
       id: '/create'
       path: '/create'
@@ -140,15 +185,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecipeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bean/$id': {
+      id: '/bean/$id'
+      path: '/bean/$id'
+      fullPath: '/bean/$id'
+      preLoaderRoute: typeof BeanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateRoute: CreateRoute,
+  NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRoute,
   SavedRoute: SavedRoute,
   SearchRoute: SearchRoute,
+  BeanIdRoute: BeanIdRoute,
   RecipeIdRoute: RecipeIdRoute,
 }
 export const routeTree = rootRouteImport
