@@ -222,20 +222,19 @@ async function applySession(session: Session | null) {
 function cleanOAuthCallbackUrl() {
   if (!isBrowser) return;
 
-  const url = new URL(window.location.href);
-  url.searchParams.delete("code");
-  url.searchParams.delete("state");
-  url.searchParams.delete("error");
-  url.searchParams.delete("error_code");
-  url.searchParams.delete("error_description");
-  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+function getOAuthCodeFromUrl() {
+  if (!isBrowser) return null;
+
+  return new URL(window.location.href).searchParams.get("code");
 }
 
 async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
   if (!supabase || !isBrowser) return null;
 
-  const url = new URL(window.location.href);
-  const code = url.searchParams.get("code");
+  const code = getOAuthCodeFromUrl();
   if (!code) return null;
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -248,11 +247,33 @@ async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
   return data.session;
 }
 
+async function restoreSessionAfterOAuthCallback(): Promise<Session | null> {
+  if (!supabase || !isBrowser) return null;
+  if (!getOAuthCodeFromUrl()) return null;
+
+  const callbackSession = await exchangeOAuthCodeFromUrl();
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    console.error("[Supabase] Failed to read session after OAuth callback", error);
+    setAuthState({
+      isLoading: false,
+      error: error.message,
+    });
+    return callbackSession;
+  }
+
+  const restoredSession = data.session ?? callbackSession;
+  if (restoredSession) cleanOAuthCallbackUrl();
+
+  return restoredSession;
+}
+
 export function initializeSupabaseAuth() {
   if (hasInitializedAuth) return;
   hasInitializedAuth = true;
 
-  if (!supabase) {
+  if (!supabase || !isBrowser) {
     setAuthState({ isLoading: false });
     return;
   }
@@ -269,7 +290,7 @@ export function initializeSupabaseAuth() {
     }, 0);
   });
 
-  exchangeOAuthCodeFromUrl().then((callbackSession) => {
+  restoreSessionAfterOAuthCallback().then((callbackSession) => {
     if (callbackSession) {
       if (import.meta.env.DEV) {
         console.info("[Supabase] OAuth callback session restored", callbackSession.user.id);
