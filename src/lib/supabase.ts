@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import {
   createClient,
   type AuthError,
@@ -41,7 +41,7 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
         flowType: "pkce",
         storage: getBrowserStorage(),
         storageKey: "brew-guidebook-auth",
@@ -248,10 +248,9 @@ async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     console.error("[Supabase] Failed to exchange OAuth code for session", error);
-    return null;
+    throw error;
   }
 
-  cleanOAuthCallbackUrl();
   return data.session;
 }
 
@@ -263,25 +262,35 @@ export async function handleSupabaseOAuthCallback(): Promise<Session | null> {
   oauthCallbackPromise = (async () => {
     console.info("[auth] handling oauth code");
 
-    const callbackSession = await exchangeOAuthCodeFromUrl();
-    const { data, error } = await supabase.auth.getSession();
+    try {
+      const callbackSession = await exchangeOAuthCodeFromUrl();
+      const { data, error } = await supabase.auth.getSession();
 
-    if (error) {
-      console.error("[Supabase] Failed to read session after OAuth callback", error);
+      if (error) {
+        console.error("[Supabase] Failed to read session after OAuth callback", error);
+        setAuthState({
+          isLoading: false,
+          error: error.message,
+        });
+        return callbackSession;
+      }
+
+      const restoredSession = data.session ?? callbackSession;
+      if (restoredSession) {
+        await applySession(restoredSession);
+      }
+
+      return restoredSession;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to handle OAuth callback.";
       setAuthState({
         isLoading: false,
-        error: error.message,
+        error: message,
       });
-      return callbackSession;
-    }
-
-    const restoredSession = data.session ?? callbackSession;
-    if (restoredSession) {
-      await applySession(restoredSession);
+      return null;
+    } finally {
       cleanOAuthCallbackUrl();
     }
-
-    return restoredSession;
   })().finally(() => {
     oauthCallbackPromise = null;
   });
@@ -336,10 +345,6 @@ export function initializeSupabaseAuth() {
 }
 
 export function useSupabaseAuth(): AuthState {
-  useEffect(() => {
-    initializeSupabaseAuth();
-  }, []);
-
   return useSyncExternalStore(
     subscribe,
     () => authState,

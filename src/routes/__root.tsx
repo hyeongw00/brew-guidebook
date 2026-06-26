@@ -123,6 +123,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthBootstrap />
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
+      <Toaster position="top-center" />
+    </QueryClientProvider>
+  );
+}
+
+function AuthBootstrap() {
   useEffect(() => {
     void (async () => {
       try {
@@ -130,25 +141,28 @@ function RootComponent() {
         if (code && supabase) {
           console.info("[auth] handling oauth code");
 
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.error("[auth] failed to exchange oauth code", exchangeError);
-          }
-
-          const { data, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) {
-            console.error("[auth] failed to restore session after oauth callback", sessionError);
-          }
-
-          if (data.session?.user) {
-            let profile = null;
-            try {
-              profile = await ensureProfile(data.session.user);
-            } catch (profileError) {
-              console.error("[auth] failed to ensure profile after oauth callback", profileError);
+          try {
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) {
+              console.error("[auth] failed to exchange oauth code", exchangeError);
             }
 
-            await applySupabaseSession(data.session, profile);
+            const { data, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError) {
+              console.error("[auth] failed to restore session after oauth callback", sessionError);
+            }
+
+            if (data.session?.user) {
+              let profile = null;
+              try {
+                profile = await ensureProfile(data.session.user);
+              } catch (profileError) {
+                console.error("[auth] failed to ensure profile after oauth callback", profileError);
+              }
+
+              await applySupabaseSession(data.session, profile);
+            }
+          } finally {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         }
@@ -158,11 +172,5 @@ function RootComponent() {
     })();
   }, []);
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster position="top-center" />
-    </QueryClientProvider>
-  );
+  return null;
 }
