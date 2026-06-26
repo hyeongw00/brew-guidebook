@@ -12,12 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
-import {
-  applySupabaseSession,
-  ensureProfile,
-  initializeSupabaseAuth,
-  supabase,
-} from "../lib/supabase";
+import { applySupabaseSession, ensureProfile, initializeSupabaseAuth, supabase } from "../lib/supabase";
 
 function NotFoundComponent() {
   return (
@@ -137,42 +132,38 @@ function AuthBootstrap() {
   useEffect(() => {
     void (async () => {
       try {
-        const code = new URLSearchParams(window.location.search).get("code");
-        if (code && supabase) {
-          console.info("[auth] handling oauth code");
-          window.history.replaceState({}, document.title, window.location.pathname);
-          console.info(
-            "[auth] pkce verifier present",
-            Boolean(window.localStorage.getItem("brew-guidebook-auth-code-verifier")),
-          );
+        const hasOAuthCallbackParams =
+          window.location.hash.includes("access_token") ||
+          window.location.hash.includes("error") ||
+          window.location.search.includes("access_token") ||
+          window.location.search.includes("error") ||
+          window.location.search.includes("code");
 
-          try {
-            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-            if (exchangeError) {
-              console.error("[auth] failed to exchange oauth code", exchangeError);
-            }
+        initializeSupabaseAuth();
 
-            const { data, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError) {
-              console.error("[auth] failed to restore session after oauth callback", sessionError);
-            }
-            console.info("[auth] oauth session restored", Boolean(data.session?.user));
+        if (hasOAuthCallbackParams && supabase) {
+          console.info("[auth] handling implicit oauth callback");
 
-            if (data.session?.user) {
-              let profile = null;
-              try {
-                profile = await ensureProfile(data.session.user);
-              } catch (profileError) {
-                console.error("[auth] failed to ensure profile after oauth callback", profileError);
-              }
-
-              await applySupabaseSession(data.session, profile);
-            }
-          } catch (authError) {
-            console.error("[auth] failed to handle oauth callback", authError);
+          const { data, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error("[auth] failed to restore implicit oauth session", error);
           }
+
+          if (data.session?.user) {
+            let profile = null;
+            try {
+              profile = await ensureProfile(data.session.user);
+            } catch (profileError) {
+              console.error("[auth] failed to ensure profile after implicit oauth callback", profileError);
+            }
+
+            await applySupabaseSession(data.session, profile);
+          }
+
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
-      } finally {
+      } catch (authError) {
+        console.error("[auth] failed to initialize auth", authError);
         initializeSupabaseAuth();
       }
     })();

@@ -41,8 +41,8 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
-        flowType: "pkce",
+        detectSessionInUrl: true,
+        flowType: "implicit",
         storage: getBrowserStorage(),
         storageKey: "brew-guidebook-auth",
       },
@@ -82,7 +82,6 @@ const initialAuthState: AuthState = {
 
 let authState = initialAuthState;
 let hasInitializedAuth = false;
-let oauthCallbackPromise: Promise<Session | null> | null = null;
 const listeners = new Set<() => void>();
 
 const subscribe = (listener: () => void) => {
@@ -227,77 +226,6 @@ export async function applySupabaseSession(
   await applySession(session, ensuredProfile);
 }
 
-function cleanOAuthCallbackUrl() {
-  if (!isBrowser) return;
-
-  window.history.replaceState({}, document.title, window.location.pathname);
-}
-
-function getOAuthCodeFromUrl() {
-  if (!isBrowser) return null;
-
-  return new URL(window.location.href).searchParams.get("code");
-}
-
-async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
-  if (!supabase || !isBrowser) return null;
-
-  const code = getOAuthCodeFromUrl();
-  if (!code) return null;
-
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    console.error("[Supabase] Failed to exchange OAuth code for session", error);
-    throw error;
-  }
-
-  return data.session;
-}
-
-export async function handleSupabaseOAuthCallback(): Promise<Session | null> {
-  if (!supabase || !isBrowser) return null;
-  if (!getOAuthCodeFromUrl()) return null;
-  if (oauthCallbackPromise) return oauthCallbackPromise;
-
-  oauthCallbackPromise = (async () => {
-    console.info("[auth] handling oauth code");
-
-    try {
-      const callbackSession = await exchangeOAuthCodeFromUrl();
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error("[Supabase] Failed to read session after OAuth callback", error);
-        setAuthState({
-          isLoading: false,
-          error: error.message,
-        });
-        return callbackSession;
-      }
-
-      const restoredSession = data.session ?? callbackSession;
-      if (restoredSession) {
-        await applySession(restoredSession);
-      }
-
-      return restoredSession;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to handle OAuth callback.";
-      setAuthState({
-        isLoading: false,
-        error: message,
-      });
-      return null;
-    } finally {
-      cleanOAuthCallbackUrl();
-    }
-  })().finally(() => {
-    oauthCallbackPromise = null;
-  });
-
-  return oauthCallbackPromise;
-}
-
 export function initializeSupabaseAuth() {
   if (hasInitializedAuth) return;
   hasInitializedAuth = true;
@@ -319,28 +247,18 @@ export function initializeSupabaseAuth() {
     }, 0);
   });
 
-  handleSupabaseOAuthCallback().then((callbackSession) => {
-    if (callbackSession) {
-      if (import.meta.env.DEV) {
-        console.info("[Supabase] OAuth callback session restored", callbackSession.user.id);
-      }
-      void applySession(callbackSession);
+  void supabase.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      setAuthState({
+        isLoading: false,
+        error: error.message,
+      });
       return;
     }
-
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        setAuthState({
-          isLoading: false,
-          error: error.message,
-        });
-        return;
-      }
-      if (data.session?.user && import.meta.env.DEV) {
-        console.info("[Supabase] Restored auth session", data.session.user.id);
-      }
-      void applySession(data.session);
-    });
+    if (data.session?.user && import.meta.env.DEV) {
+      console.info("[Supabase] Restored auth session", data.session.user.id);
+    }
+    void applySession(data.session);
   });
 }
 
