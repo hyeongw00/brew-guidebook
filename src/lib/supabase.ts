@@ -11,6 +11,7 @@ import { setAuthenticatedProfile, type Profile } from "./store";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const isBrowser = typeof window !== "undefined";
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabaseConfigError = isSupabaseConfigured
@@ -21,12 +22,29 @@ if (!isSupabaseConfigured && import.meta.env.DEV) {
   console.warn(`[Supabase] ${supabaseConfigError}`);
 }
 
+function getBrowserStorage() {
+  if (!isBrowser) return undefined;
+
+  try {
+    const testKey = "brew-guidebook:supabase-storage-test";
+    window.localStorage.setItem(testKey, "1");
+    window.localStorage.removeItem(testKey);
+    return window.localStorage;
+  } catch (error) {
+    console.warn("[Supabase] localStorage is unavailable; auth persistence may be limited.", error);
+    return undefined;
+  }
+}
+
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        flowType: "pkce",
+        storage: getBrowserStorage(),
+        storageKey: "brew-guidebook-auth",
       },
     })
   : null;
@@ -201,6 +219,35 @@ async function applySession(session: Session | null) {
   }
 }
 
+function cleanOAuthCallbackUrl() {
+  if (!isBrowser) return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("code");
+  url.searchParams.delete("state");
+  url.searchParams.delete("error");
+  url.searchParams.delete("error_code");
+  url.searchParams.delete("error_description");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
+async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
+  if (!supabase || !isBrowser) return null;
+
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("code");
+  if (!code) return null;
+
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error("[Supabase] Failed to exchange OAuth code for session", error);
+    return null;
+  }
+
+  cleanOAuthCallbackUrl();
+  return data.session;
+}
+
 export function initializeSupabaseAuth() {
   if (hasInitializedAuth) return;
   hasInitializedAuth = true;
@@ -210,20 +257,6 @@ export function initializeSupabaseAuth() {
     return;
   }
 
-  supabase.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      setAuthState({
-        isLoading: false,
-        error: error.message,
-      });
-      return;
-    }
-    if (data.session?.user && import.meta.env.DEV) {
-      console.info("[Supabase] Restored auth session", data.session.user.id);
-    }
-    void applySession(data.session);
-  });
-
   supabase.auth.onAuthStateChange((event: AuthChangeEvent, session) => {
     if (!["SIGNED_IN", "TOKEN_REFRESHED", "INITIAL_SESSION", "SIGNED_OUT"].includes(event)) {
       return;
@@ -231,9 +264,33 @@ export function initializeSupabaseAuth() {
     if (import.meta.env.DEV) {
       console.info("[Supabase] Auth state changed", event, session?.user?.id ?? null);
     }
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       void applySession(session);
     }, 0);
+  });
+
+  exchangeOAuthCodeFromUrl().then((callbackSession) => {
+    if (callbackSession) {
+      if (import.meta.env.DEV) {
+        console.info("[Supabase] OAuth callback session restored", callbackSession.user.id);
+      }
+      void applySession(callbackSession);
+      return;
+    }
+
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        setAuthState({
+          isLoading: false,
+          error: error.message,
+        });
+        return;
+      }
+      if (data.session?.user && import.meta.env.DEV) {
+        console.info("[Supabase] Restored auth session", data.session.user.id);
+      }
+      void applySession(data.session);
+    });
   });
 }
 
@@ -254,7 +311,7 @@ export async function loginWithGoogle() {
     return { error: new Error(supabaseConfigError ?? "Supabase is not configured.") };
   }
 
-  const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+  const redirectTo = isBrowser ? `${window.location.origin}/profile` : undefined;
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
