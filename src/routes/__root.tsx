@@ -12,7 +12,12 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
-import { initializeSupabaseAuth } from "../lib/supabase";
+import {
+  applySupabaseSession,
+  ensureProfile,
+  initializeSupabaseAuth,
+  supabase,
+} from "../lib/supabase";
 
 function NotFoundComponent() {
   return (
@@ -119,7 +124,38 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    initializeSupabaseAuth();
+    void (async () => {
+      try {
+        const code = new URLSearchParams(window.location.search).get("code");
+        if (code && supabase) {
+          console.info("[auth] handling oauth code");
+
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("[auth] failed to exchange oauth code", exchangeError);
+          }
+
+          const { data, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.error("[auth] failed to restore session after oauth callback", sessionError);
+          }
+
+          if (data.session?.user) {
+            let profile = null;
+            try {
+              profile = await ensureProfile(data.session.user);
+            } catch (profileError) {
+              console.error("[auth] failed to ensure profile after oauth callback", profileError);
+            }
+
+            await applySupabaseSession(data.session, profile);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } finally {
+        initializeSupabaseAuth();
+      }
+    })();
   }, []);
 
   return (

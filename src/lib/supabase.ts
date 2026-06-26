@@ -82,6 +82,7 @@ const initialAuthState: AuthState = {
 
 let authState = initialAuthState;
 let hasInitializedAuth = false;
+let oauthCallbackPromise: Promise<Session | null> | null = null;
 const listeners = new Set<() => void>();
 
 const subscribe = (listener: () => void) => {
@@ -134,7 +135,7 @@ function toAppProfile(profile: SupabaseProfile): Partial<Profile> {
   };
 }
 
-async function ensureProfile(user: User) {
+export async function ensureProfile(user: User) {
   if (!supabase) return null;
 
   const profile = profileFromUser(user);
@@ -175,7 +176,7 @@ async function ensureProfile(user: User) {
   return selectedProfile;
 }
 
-async function applySession(session: Session | null) {
+async function applySession(session: Session | null, ensuredProfile?: SupabaseProfile | null) {
   if (!session?.user) {
     setAuthenticatedProfile(null);
     setAuthState({
@@ -196,7 +197,7 @@ async function applySession(session: Session | null) {
   });
 
   try {
-    const profile = await ensureProfile(session.user);
+    const profile = ensuredProfile ?? (await ensureProfile(session.user));
     setAuthenticatedProfile(profile ? toAppProfile(profile) : null);
     setAuthState({
       isLoading: false,
@@ -217,6 +218,13 @@ async function applySession(session: Session | null) {
       error: message,
     });
   }
+}
+
+export async function applySupabaseSession(
+  session: Session | null,
+  ensuredProfile?: SupabaseProfile | null,
+) {
+  await applySession(session, ensuredProfile);
 }
 
 function cleanOAuthCallbackUrl() {
@@ -247,26 +255,38 @@ async function exchangeOAuthCodeFromUrl(): Promise<Session | null> {
   return data.session;
 }
 
-async function restoreSessionAfterOAuthCallback(): Promise<Session | null> {
+export async function handleSupabaseOAuthCallback(): Promise<Session | null> {
   if (!supabase || !isBrowser) return null;
   if (!getOAuthCodeFromUrl()) return null;
+  if (oauthCallbackPromise) return oauthCallbackPromise;
 
-  const callbackSession = await exchangeOAuthCodeFromUrl();
-  const { data, error } = await supabase.auth.getSession();
+  oauthCallbackPromise = (async () => {
+    console.info("[auth] handling oauth code");
 
-  if (error) {
-    console.error("[Supabase] Failed to read session after OAuth callback", error);
-    setAuthState({
-      isLoading: false,
-      error: error.message,
-    });
-    return callbackSession;
-  }
+    const callbackSession = await exchangeOAuthCodeFromUrl();
+    const { data, error } = await supabase.auth.getSession();
 
-  const restoredSession = data.session ?? callbackSession;
-  if (restoredSession) cleanOAuthCallbackUrl();
+    if (error) {
+      console.error("[Supabase] Failed to read session after OAuth callback", error);
+      setAuthState({
+        isLoading: false,
+        error: error.message,
+      });
+      return callbackSession;
+    }
 
-  return restoredSession;
+    const restoredSession = data.session ?? callbackSession;
+    if (restoredSession) {
+      await applySession(restoredSession);
+      cleanOAuthCallbackUrl();
+    }
+
+    return restoredSession;
+  })().finally(() => {
+    oauthCallbackPromise = null;
+  });
+
+  return oauthCallbackPromise;
 }
 
 export function initializeSupabaseAuth() {
@@ -290,7 +310,7 @@ export function initializeSupabaseAuth() {
     }, 0);
   });
 
-  restoreSessionAfterOAuthCallback().then((callbackSession) => {
+  handleSupabaseOAuthCallback().then((callbackSession) => {
     if (callbackSession) {
       if (import.meta.env.DEV) {
         console.info("[Supabase] OAuth callback session restored", callbackSession.user.id);
