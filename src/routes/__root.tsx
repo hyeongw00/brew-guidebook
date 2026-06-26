@@ -140,6 +140,11 @@ function AuthBootstrap() {
         const code = new URLSearchParams(window.location.search).get("code");
         if (code && supabase) {
           console.info("[auth] handling oauth code");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          console.info(
+            "[auth] pkce verifier present",
+            Boolean(window.localStorage.getItem("brew-guidebook-auth-code-verifier")),
+          );
 
           try {
             const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
@@ -151,6 +156,7 @@ function AuthBootstrap() {
             if (sessionError) {
               console.error("[auth] failed to restore session after oauth callback", sessionError);
             }
+            console.info("[auth] oauth session restored", Boolean(data.session?.user));
 
             if (data.session?.user) {
               let profile = null;
@@ -162,8 +168,8 @@ function AuthBootstrap() {
 
               await applySupabaseSession(data.session, profile);
             }
-          } finally {
-            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch (authError) {
+            console.error("[auth] failed to handle oauth callback", authError);
           }
         }
       } finally {
