@@ -13,6 +13,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const isBrowser = typeof window !== "undefined";
 
+function maskEnvValue(value: string | undefined) {
+  if (!value) return "missing";
+  return `${value.slice(0, 10)}...${value.slice(-10)}`;
+}
+
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabaseConfigError = isSupabaseConfigured
   ? null
@@ -20,6 +25,18 @@ export const supabaseConfigError = isSupabaseConfigured
 
 if (!isSupabaseConfigured && import.meta.env.DEV) {
   console.warn(`[Supabase] ${supabaseConfigError}`);
+}
+
+if (isBrowser) {
+  console.info("[Supabase env]", {
+    url: supabaseUrl ?? "missing",
+    anonKey: maskEnvValue(supabaseAnonKey),
+    anonKeyLength: supabaseAnonKey?.length ?? 0,
+    anonKeyPrefix: supabaseAnonKey?.slice(0, 14) ?? "missing",
+    isJwtAnonKey: supabaseAnonKey?.startsWith("eyJ") ?? false,
+    isPublishableKey: supabaseAnonKey?.startsWith("sb_publishable_") ?? false,
+    isServiceRoleLike: supabaseAnonKey?.includes("service_role") ?? false,
+  });
 }
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured
