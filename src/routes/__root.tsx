@@ -132,12 +132,43 @@ function AuthBootstrap() {
   useEffect(() => {
     void (async () => {
       try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
         const hasOAuthCallbackParams =
-          window.location.hash.includes("access_token") ||
+          Boolean(accessToken) ||
+          Boolean(refreshToken) ||
           window.location.hash.includes("error") ||
           window.location.search.includes("access_token") ||
           window.location.search.includes("error") ||
           window.location.search.includes("code");
+
+        if (hasOAuthCallbackParams) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        if (accessToken && refreshToken && supabase) {
+          console.info("[auth] setting implicit oauth session from hash");
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) {
+            console.error("[auth] failed to set implicit oauth session", error);
+          }
+
+          if (data.session?.user) {
+            let profile = null;
+            try {
+              profile = await ensureProfile(data.session.user);
+            } catch (profileError) {
+              console.error("[auth] failed to ensure profile after setSession", profileError);
+            }
+
+            await applySupabaseSession(data.session, profile);
+          }
+        }
 
         initializeSupabaseAuth();
 
