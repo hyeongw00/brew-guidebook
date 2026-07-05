@@ -196,7 +196,10 @@ async function applySession(session: Session | null, ensuredProfile?: SupabasePr
   });
 
   try {
-    const profile = ensuredProfile ?? (await ensureProfile(session.user));
+    const hasProvidedProfile = arguments.length > 1;
+    const profile = hasProvidedProfile
+      ? (ensuredProfile ?? profileFromUser(session.user))
+      : await ensureProfile(session.user);
     setAuthenticatedProfile(profile ? toAppProfile(profile) : null);
     setAuthState({
       isLoading: false,
@@ -226,6 +229,28 @@ export async function applySupabaseSession(
   await applySession(session, ensuredProfile);
 }
 
+export async function refreshSupabaseSession(source = "auth") {
+  if (!supabase) {
+    setAuthState({ isLoading: false });
+    return null;
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  console.info(`[${source}] supabase.auth.getSession user`, Boolean(data.session?.user));
+
+  if (error) {
+    console.error(`[${source}] failed to read Supabase session`, error);
+    setAuthState({
+      isLoading: false,
+      error: error.message,
+    });
+    return null;
+  }
+
+  await applySession(data.session);
+  return data.session;
+}
+
 export function initializeSupabaseAuth() {
   if (hasInitializedAuth) return;
   hasInitializedAuth = true;
@@ -247,19 +272,7 @@ export function initializeSupabaseAuth() {
     }, 0);
   });
 
-  void supabase.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      setAuthState({
-        isLoading: false,
-        error: error.message,
-      });
-      return;
-    }
-    if (data.session?.user && import.meta.env.DEV) {
-      console.info("[Supabase] Restored auth session", data.session.user.id);
-    }
-    void applySession(data.session);
-  });
+  void refreshSupabaseSession("auth-init");
 }
 
 export function useSupabaseAuth(): AuthState {

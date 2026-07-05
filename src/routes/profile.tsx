@@ -11,7 +11,7 @@ import {
 } from "@/lib/store";
 import { getRecipesByUser } from "@/lib/recipes-api";
 import type { Recipe } from "@/lib/mock-data";
-import { loginWithGoogle, logout, useSupabaseAuth } from "@/lib/supabase";
+import { loginWithGoogle, logout, refreshSupabaseSession, useSupabaseAuth } from "@/lib/supabase";
 import { Settings, UserPlus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,9 +44,38 @@ function ProfilePage() {
 
   const visibleMyRecipes = dbMyRecipes.length > 0 ? dbMyRecipes : myRecipes;
   const items = tab === "recipes" ? visibleMyRecipes : saved;
-  const profileName = profile.displayName || profile.username;
+  const authProfileName =
+    auth.profile?.full_name ??
+    auth.profile?.username ??
+    auth.user?.user_metadata?.full_name ??
+    auth.user?.user_metadata?.name ??
+    auth.user?.email ??
+    null;
+  const displayedProfile = auth.user
+    ? {
+        ...profile,
+        displayName: authProfileName ?? profile.displayName,
+        username: auth.profile?.username ?? auth.user.email ?? profile.username,
+        avatarUrl:
+          auth.profile?.avatar_url ??
+          auth.user.user_metadata?.avatar_url ??
+          auth.user.user_metadata?.picture ??
+          profile.avatarUrl,
+        bio: auth.profile?.bio ?? auth.user.email ?? profile.bio,
+      }
+    : profile;
+  const profileName = displayedProfile.displayName || displayedProfile.username;
   const profileInitial = profileName.trim().charAt(0).toUpperCase() || "?";
   const followingList = useMemo(() => [...followingUsers].sort(), [followingUsers]);
+
+  useEffect(() => {
+    void refreshSupabaseSession("profile");
+    const retry = window.setTimeout(() => {
+      void refreshSupabaseSession("profile-retry");
+    }, 800);
+
+    return () => window.clearTimeout(retry);
+  }, []);
 
   useEffect(() => {
     if (!auth.user) {
@@ -78,7 +107,7 @@ function ProfilePage() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-black">{profileName}</h1>
-            <p className="text-xs text-muted-foreground">{profile.bio}</p>
+            <p className="text-xs text-muted-foreground">{displayedProfile.bio}</p>
           </div>
           <button
             type="button"
@@ -111,9 +140,9 @@ function ProfilePage() {
         <AuthStatusCard auth={auth} />
 
         <div className="mt-5 space-y-2 rounded-2xl bg-card p-4 shadow-[var(--shadow-soft)]">
-          <Row k="선호하는 맛" v={profile.favoriteTasteProfile} />
-          <Row k="메인 그라인더" v={profile.mainGrinder} />
-          <Row k="메인 드리퍼" v={profile.mainDripper} />
+          <Row k="선호하는 맛" v={displayedProfile.favoriteTasteProfile} />
+          <Row k="메인 그라인더" v={displayedProfile.mainGrinder} />
+          <Row k="메인 드리퍼" v={displayedProfile.mainDripper} />
         </div>
 
         <div className="mt-6 flex gap-2 border-b border-border">
@@ -185,14 +214,15 @@ function ProfilePage() {
 }
 
 function AuthStatusCard({ auth }: { auth: ReturnType<typeof useSupabaseAuth> }) {
+  const sessionUser = auth.user ?? auth.session?.user ?? null;
   const userLabel =
     auth.profile?.full_name ??
     auth.profile?.username ??
-    auth.user?.user_metadata?.full_name ??
-    auth.user?.user_metadata?.name ??
-    auth.user?.email ??
+    sessionUser?.user_metadata?.full_name ??
+    sessionUser?.user_metadata?.name ??
+    sessionUser?.email ??
     "로그인됨";
-  const isLoggedIn = Boolean(auth.user);
+  const isLoggedIn = Boolean(sessionUser);
 
   const handleLogin = async () => {
     const { error } = await loginWithGoogle();
