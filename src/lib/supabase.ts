@@ -22,20 +22,6 @@ if (!isSupabaseConfigured && import.meta.env.DEV) {
   console.warn(`[Supabase] ${supabaseConfigError}`);
 }
 
-function getBrowserStorage() {
-  if (!isBrowser) return undefined;
-
-  try {
-    const testKey = "brew-guidebook:supabase-storage-test";
-    window.localStorage.setItem(testKey, "1");
-    window.localStorage.removeItem(testKey);
-    return window.localStorage;
-  } catch (error) {
-    console.warn("[Supabase] localStorage is unavailable; auth persistence may be limited.", error);
-    return undefined;
-  }
-}
-
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -43,8 +29,6 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: "implicit",
-        storage: getBrowserStorage(),
-        storageKey: "brew-guidebook-auth",
       },
     })
   : null;
@@ -233,6 +217,13 @@ export async function refreshSupabaseSession(source = "auth") {
   if (!supabase) {
     setAuthState({ isLoading: false });
     return null;
+  }
+
+  if (isBrowser) {
+    console.info(
+      `[${source}] Supabase storage keys`,
+      Object.keys(window.localStorage).filter((key) => key.includes("auth-token")),
+    );
   }
 
   const { data, error } = await supabase.auth.getSession();
